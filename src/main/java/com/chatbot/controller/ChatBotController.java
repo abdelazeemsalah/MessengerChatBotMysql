@@ -176,7 +176,7 @@ public class ChatBotController {
 					Integer messageTypeId = botInteractionMessage.getBotMessageType().getMessageTypeId();
 					Integer messageId = botInteractionMessage.getMessageId();
 					// text message
-					if (messageTypeId == 1) {
+					if (messageTypeId == MessageTypeEnum.TEXTMESSAGE.getValue()) {
 						BotTextMessage botTextMessage = chatBotService.findTextMessageByMessageId(messageId);
 						text = botTextMessage.getBotText().getEnglishText();
 						messagePayload = MessagePayload.create(senderId, MessagingType.RESPONSE, TextMessage.create(text));
@@ -184,7 +184,7 @@ public class ChatBotController {
 						// sendTextMessage(text, messenger, senderId);
 					}
 					// quick reply
-					else if (messageTypeId == 2) {
+					else if (messageTypeId == MessageTypeEnum.QUICKREPLYMESSAGE.getValue()) {
 						BotQuickReplyMessage botQuickReplyMessage = chatBotService.findQuickReplyMessageByMessageId(messageId);
 						text = botQuickReplyMessage.getBotText().getEnglishText();
 						List<QuickReply> quickReplies = new ArrayList<>();
@@ -219,7 +219,7 @@ public class ChatBotController {
 						messagePayloadList.add(messagePayload);
 					}
 					// generic template
-					else if (messageTypeId == 3) {
+					else if (messageTypeId == MessageTypeEnum.GENERICTEMPLATEMESSAGE.getValue()) {
 						BotGTemplateMessage botGTemplateMessage = chatBotService.findGTemplateMessageByMessageId(messageId);
 						List<BotTemplateElement> botTemplateElementList = chatBotService
 								.findTemplateElementsByGTMsgId(botGTemplateMessage.getGTMsgId());
@@ -230,11 +230,11 @@ public class ChatBotController {
 							for (BotButton botButton : elementButtonList) {
 								Button button = null;
 								// PostBack
-								if (botButton.getButtonType() == 1) {
+								if (botButton.getButtonType() == ButtonTypeEnum.POSTBACK.getValue()) {
 									button = PostbackButton.create(botButton.getBotText().getEnglishText(), botButton.getButtonPayload());
 								}
 								// URL
-								else if (botButton.getButtonType() == 2) {
+								else if (botButton.getButtonType() == ButtonTypeEnum.URL.getValue()) {
 									button = UrlButton.create(botButton.getBotText().getEnglishText(), new URL(botButton.getButtonUrl()));
 								}
 								buttonsList.add(button);
@@ -331,6 +331,32 @@ public class ChatBotController {
 			System.out.println(interactionMessageList.get(0).getMessagePriority());
 		return ResponseEntity.status(200).body(output);
 
+	}
+
+	public enum ButtonTypeEnum {
+		POSTBACK(1), URL(2);
+		private final int buttonTypeId;
+
+		private ButtonTypeEnum(int typeId) {
+			this.buttonTypeId = typeId;
+		}
+
+		public int getValue() {
+			return buttonTypeId;
+		}
+	}
+
+	public enum MessageTypeEnum {
+		TEXTMESSAGE(1), QUICKREPLYMESSAGE(2), GENERICTEMPLATEMESSAGE(3);
+		private final int messageTypeId;
+
+		private MessageTypeEnum(int messageTypeId) {
+			this.messageTypeId = messageTypeId;
+		}
+
+		public int getValue() {
+			return messageTypeId;
+		}
 	}
 
 }
