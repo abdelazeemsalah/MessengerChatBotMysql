@@ -9,6 +9,8 @@ import com.chatbot.entity.BotInteractionMessage;
 import com.chatbot.entity.BotQuickReplyMessage;
 import com.chatbot.entity.BotTemplateElement;
 import com.chatbot.entity.BotTextMessage;
+import com.chatbot.entity.BotWebserviceMapping;
+import com.chatbot.entity.BotWebserviceMessage;
 
 public interface ChatBotService {
 	public List<BotInteractionMessage> findInteractionMessagesByInteractionId(Integer interactionId);
@@ -26,4 +28,8 @@ public interface ChatBotService {
 	public List<BotTemplateElement> findTemplateElementsByGTMsgId(Integer gTMsgId);
 
 	public List<BotButton> findButtonsByTemplateElementId(Integer elementId);
+
+	public BotWebserviceMessage findWebserviceMessageByMessageId(Integer messageId);
+
+	public List<BotWebserviceMapping> findWebserviceMappingByWsId(Integer wsId);
 }

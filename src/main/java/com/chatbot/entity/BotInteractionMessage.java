@@ -10,6 +10,8 @@ import javax.persistence.ManyToOne;
 import javax.persistence.NamedQuery;
 import javax.persistence.Table;
 
+import org.hibernate.annotations.Type;
+
 /**
  * The persistent class for the BOT_INTERACTION_MESSAGES database table.
  */
@@ -35,6 +37,10 @@ public class BotInteractionMessage implements Serializable {
 	@ManyToOne
 	@JoinColumn(name = "INTERACTION_ID")
 	private BotInteraction botInteraction;
+
+	@Column(name = "IS_STATIC")
+	@Type(type = "numeric_boolean")
+	private boolean isStatic;
 
 	public BotInteractionMessage() {
 	}
@@ -69,6 +75,14 @@ public class BotInteractionMessage implements Serializable {
 
 	public void setBotInteraction(BotInteraction botInteraction) {
 		this.botInteraction = botInteraction;
+	}
+
+	public boolean isStatic() {
+		return isStatic;
+	}
+
+	public void setStatic(boolean isStatic) {
+		this.isStatic = isStatic;
 	}
 
 }

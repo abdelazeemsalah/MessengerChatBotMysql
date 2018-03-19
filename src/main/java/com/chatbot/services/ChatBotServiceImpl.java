@@ -11,6 +11,8 @@ import com.chatbot.dao.BotInteractionRepo;
 import com.chatbot.dao.BotQuickReplyMessageRepo;
 import com.chatbot.dao.BotTemplateElementRepo;
 import com.chatbot.dao.BotTextMessageRepo;
+import com.chatbot.dao.BotWebserviceMappingRepo;
+import com.chatbot.dao.BotWebserviceMessageRepo;
 import com.chatbot.dao.InteractionMessageRepo;
 import com.chatbot.entity.BotButton;
 import com.chatbot.entity.BotGTemplateMessage;
@@ -19,6 +21,8 @@ import com.chatbot.entity.BotInteractionMessage;
 import com.chatbot.entity.BotQuickReplyMessage;
 import com.chatbot.entity.BotTemplateElement;
 import com.chatbot.entity.BotTextMessage;
+import com.chatbot.entity.BotWebserviceMapping;
+import com.chatbot.entity.BotWebserviceMessage;
 
 @Service
 public class ChatBotServiceImpl implements ChatBotService {
@@ -42,6 +46,12 @@ public class ChatBotServiceImpl implements ChatBotService {
 
 	@Autowired
 	private BotTemplateElementRepo botTemplateElementRepo;
+
+	@Autowired
+	private BotWebserviceMessageRepo botWebserviceMessageRepo;
+
+	@Autowired
+	private BotWebserviceMappingRepo botWebserviceMappingRepo;
 
 	public List<BotInteractionMessage> findInteractionMessagesByInteractionId(Integer interactionId) {
 		return interactionMessageRepo.findByBotInteractionInteractionIdOrderByMessagePriority(interactionId);
@@ -77,5 +87,17 @@ public class ChatBotServiceImpl implements ChatBotService {
 	public List<BotButton> findButtonsByTemplateElementId(Integer elementId) {
 		// TODO Auto-generated method stub
 		return botButtonRepo.findByBotTemplateElementElementId(elementId);
+	}
+
+	@Override
+	public BotWebserviceMessage findWebserviceMessageByMessageId(Integer messageId) {
+		// TODO Auto-generated method stub
+		return botWebserviceMessageRepo.findByBotInteractionMessageMessageId(messageId);
+	}
+
+	@Override
+	public List<BotWebserviceMapping> findWebserviceMappingByWsId(Integer wsId) {
+		// TODO Auto-generated method stub
+		return botWebserviceMappingRepo.findByBotWebserviceMessageWsMsgId(wsId);
 	}
 }

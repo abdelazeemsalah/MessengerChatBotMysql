@@ -7,9 +7,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.json.JSONTokener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
 
 import com.chatbot.entity.BotButton;
 import com.chatbot.entity.BotGTemplateMessage;
@@ -27,7 +34,10 @@ import com.chatbot.entity.BotInteractionMessage;
 import com.chatbot.entity.BotQuickReplyMessage;
 import com.chatbot.entity.BotTemplateElement;
 import com.chatbot.entity.BotTextMessage;
+import com.chatbot.entity.BotWebserviceMapping;
+import com.chatbot.entity.BotWebserviceMessage;
 import com.chatbot.services.ChatBotService;
+import com.chatbot.util.Utils;
 import com.github.messenger4j.Messenger;
 import com.github.messenger4j.exception.MessengerApiException;
 import com.github.messenger4j.exception.MessengerIOException;
@@ -165,6 +175,11 @@ public class ChatBotController {
 	private void handlePayload(String payload, Messenger messenger, String senderId) {
 		try {
 			String text;
+			String payloadWithoutPrefix = "";
+			if (payload.startsWith("SUB__")) {
+				payload = "SUB__";
+				payloadWithoutPrefix = payload.substring(5);
+			}
 			BotInteraction botInteraction = chatBotService.findInteractionByPayload(payload);
 			if (!botInteraction.getIsSecure()) {
 				List<BotInteractionMessage> interactionMessageList = chatBotService
@@ -175,81 +190,209 @@ public class ChatBotController {
 
 					Integer messageTypeId = botInteractionMessage.getBotMessageType().getMessageTypeId();
 					Integer messageId = botInteractionMessage.getMessageId();
-					// text message
-					if (messageTypeId == MessageTypeEnum.TEXTMESSAGE.getValue()) {
-						BotTextMessage botTextMessage = chatBotService.findTextMessageByMessageId(messageId);
-						text = botTextMessage.getBotText().getEnglishText();
-						messagePayload = MessagePayload.create(senderId, MessagingType.RESPONSE, TextMessage.create(text));
-						messagePayloadList.add(messagePayload);
-						// sendTextMessage(text, messenger, senderId);
-					}
-					// quick reply
-					else if (messageTypeId == MessageTypeEnum.QUICKREPLYMESSAGE.getValue()) {
-						BotQuickReplyMessage botQuickReplyMessage = chatBotService.findQuickReplyMessageByMessageId(messageId);
-						text = botQuickReplyMessage.getBotText().getEnglishText();
-						List<QuickReply> quickReplies = new ArrayList<>();
-						List<BotButton> quickReplyButtonList = chatBotService.findButtonsByQuickReplyMessageId(botQuickReplyMessage.getQuickMsgId());
-						QuickReply quickReply = null;
-						for (BotButton botButton : quickReplyButtonList) {
-							/*
-							 * // Postback if (botButton.getButtonType() == 1) { quickReply =
-							 * TextQuickReply.create(botButton.getBotText().getEnglishText(),
-							 * botButton.getButtonPayload()); } // URL else if (botButton.getButtonType() == 2) {
-							 * quickReply = TextQuickReply.create(botButton.getBotText().getEnglishText(),
-							 * botButton.getButtonPayload(), Optional.of(new URL(botButton.getButtonUrl()))); }
-							 */
-							if (botButton.getButtonImageUrl() != null)
-								quickReply = TextQuickReply.create(botButton.getBotText().getEnglishText(), botButton.getButtonPayload(),
-										Optional.of(new URL(botButton.getButtonImageUrl())));
-							else
-								quickReply = TextQuickReply.create(botButton.getBotText().getEnglishText(), botButton.getButtonPayload());
 
-							quickReplies.add(quickReply);
+					if (botInteractionMessage.isStatic()) {
+						// text message
+						if (messageTypeId == MessageTypeEnum.TEXTMESSAGE.getValue()) {
+							BotTextMessage botTextMessage = chatBotService.findTextMessageByMessageId(messageId);
+							text = botTextMessage.getBotText().getEnglishText();
+							messagePayload = MessagePayload.create(senderId, MessagingType.RESPONSE, TextMessage.create(text));
+							messagePayloadList.add(messagePayload);
+							// sendTextMessage(text, messenger, senderId);
 						}
-						// QuickReply qR1 = TextQuickReply.create("brilliant1", "BRILLIANT_PAYLOAD1");
-						// QuickReply qR2 = TextQuickReply.create("brilliant2", "BRILLIANT_PAYLOAD2");
-						// QuickReply qR3 = TextQuickReply.create("brilliant3", "BRILLIANT_PAYLOAD3");
+						// quick reply
+						else if (messageTypeId == MessageTypeEnum.QUICKREPLYMESSAGE.getValue()) {
+							BotQuickReplyMessage botQuickReplyMessage = chatBotService.findQuickReplyMessageByMessageId(messageId);
+							text = botQuickReplyMessage.getBotText().getEnglishText();
+							List<QuickReply> quickReplies = new ArrayList<>();
+							List<BotButton> quickReplyButtonList = chatBotService
+									.findButtonsByQuickReplyMessageId(botQuickReplyMessage.getQuickMsgId());
+							QuickReply quickReply = null;
+							for (BotButton botButton : quickReplyButtonList) {
+								/*
+								 * // Postback if (botButton.getButtonType() == 1) { quickReply =
+								 * TextQuickReply.create(botButton.getBotText().getEnglishText(),
+								 * botButton.getButtonPayload()); } // URL else if (botButton.getButtonType() == 2) {
+								 * quickReply = TextQuickReply.create(botButton.getBotText().getEnglishText(),
+								 * botButton.getButtonPayload(), Optional.of(new URL(botButton.getButtonUrl()))); }
+								 */
+								if (botButton.getButtonImageUrl() != null)
+									quickReply = TextQuickReply.create(botButton.getBotText().getEnglishText(), botButton.getButtonPayload(),
+											Optional.of(new URL(botButton.getButtonImageUrl())));
+								else
+									quickReply = TextQuickReply.create(botButton.getBotText().getEnglishText(), botButton.getButtonPayload());
 
-						// quickReplies.add(qR1);
-						// quickReplies.add(qR2);
-						// quickReplies.add(qR3);
-						// sendQuickReplyMessage(quickReplies, text, messenger, senderId);
-						Optional<List<QuickReply>> quickRepliesOp = Optional.of(quickReplies);
-						messagePayload = MessagePayload.create(senderId, MessagingType.RESPONSE, TextMessage.create(text, quickRepliesOp, empty()));
-						messagePayloadList.add(messagePayload);
-					}
-					// generic template
-					else if (messageTypeId == MessageTypeEnum.GENERICTEMPLATEMESSAGE.getValue()) {
-						BotGTemplateMessage botGTemplateMessage = chatBotService.findGTemplateMessageByMessageId(messageId);
-						List<BotTemplateElement> botTemplateElementList = chatBotService
-								.findTemplateElementsByGTMsgId(botGTemplateMessage.getGTMsgId());
-						List<Element> elements = new ArrayList<>();
-						for (BotTemplateElement botTemplateElement : botTemplateElementList) {
-							List<BotButton> elementButtonList = chatBotService.findButtonsByTemplateElementId(botTemplateElement.getElementId());
-							List<Button> buttonsList = new ArrayList<>();
-							for (BotButton botButton : elementButtonList) {
-								Button button = null;
-								// PostBack
-								if (botButton.getButtonType() == ButtonTypeEnum.POSTBACK.getValue()) {
-									button = PostbackButton.create(botButton.getBotText().getEnglishText(), botButton.getButtonPayload());
-								}
-								// URL
-								else if (botButton.getButtonType() == ButtonTypeEnum.URL.getValue()) {
-									button = UrlButton.create(botButton.getBotText().getEnglishText(), new URL(botButton.getButtonUrl()));
-								}
-								buttonsList.add(button);
+								quickReplies.add(quickReply);
 							}
-							Element element = Element.create(botTemplateElement.getTitle().getEnglishText(),
-									Optional.of(botTemplateElement.getSubTitle().getEnglishText()),
-									Optional.of(new URL(botTemplateElement.getImageUrl())), empty(), Optional.of(buttonsList));
+							// QuickReply qR1 = TextQuickReply.create("brilliant1", "BRILLIANT_PAYLOAD1");
+							// QuickReply qR2 = TextQuickReply.create("brilliant2", "BRILLIANT_PAYLOAD2");
+							// QuickReply qR3 = TextQuickReply.create("brilliant3", "BRILLIANT_PAYLOAD3");
 
-							elements.add(element);
+							// quickReplies.add(qR1);
+							// quickReplies.add(qR2);
+							// quickReplies.add(qR3);
+							// sendQuickReplyMessage(quickReplies, text, messenger, senderId);
+							Optional<List<QuickReply>> quickRepliesOp = Optional.of(quickReplies);
+							messagePayload = MessagePayload.create(senderId, MessagingType.RESPONSE,
+									TextMessage.create(text, quickRepliesOp, empty()));
+							messagePayloadList.add(messagePayload);
 						}
-						Template template = GenericTemplate.create(elements);
-						messagePayload = MessagePayload.create(senderId, MessagingType.RESPONSE, TemplateMessage.create(template));
-						messagePayloadList.add(messagePayload);
-						// sendTemplateMessage(elements, messenger, senderId);
+						// generic template
+						else if (messageTypeId == MessageTypeEnum.GENERICTEMPLATEMESSAGE.getValue()) {
+							BotGTemplateMessage botGTemplateMessage = chatBotService.findGTemplateMessageByMessageId(messageId);
+							List<BotTemplateElement> botTemplateElementList = chatBotService
+									.findTemplateElementsByGTMsgId(botGTemplateMessage.getGTMsgId());
+							List<Element> elements = new ArrayList<>();
+							for (BotTemplateElement botTemplateElement : botTemplateElementList) {
+								List<BotButton> elementButtonList = chatBotService.findButtonsByTemplateElementId(botTemplateElement.getElementId());
+								List<Button> buttonsList = new ArrayList<>();
+								for (BotButton botButton : elementButtonList) {
+									Button button = null;
+									// PostBack
+									if (botButton.getButtonType() == ButtonTypeEnum.POSTBACK.getValue()) {
+										button = PostbackButton.create(botButton.getBotText().getEnglishText(), botButton.getButtonPayload());
+									}
+									// URL
+									else if (botButton.getButtonType() == ButtonTypeEnum.URL.getValue()) {
+										button = UrlButton.create(botButton.getBotText().getEnglishText(), new URL(botButton.getButtonUrl()));
+									}
+									buttonsList.add(button);
+								}
+								Element element = Element.create(botTemplateElement.getTitle().getEnglishText(),
+										Optional.of(botTemplateElement.getSubTitle().getEnglishText()),
+										Optional.of(new URL(botTemplateElement.getImageUrl())), empty(), Optional.of(buttonsList));
 
+								elements.add(element);
+							}
+							Template template = GenericTemplate.create(elements);
+							messagePayload = MessagePayload.create(senderId, MessagingType.RESPONSE, TemplateMessage.create(template));
+							messagePayloadList.add(messagePayload);
+							// sendTemplateMessage(elements, messenger, senderId);
+
+						}
+					}
+					// Dynamic Scenario
+					else {
+						BotWebserviceMessage botWebserviceMessage = chatBotService.findWebserviceMessageByMessageId(messageId);
+						RestTemplate restTemplate = new RestTemplate();
+
+						// Build request headers if exists
+						HttpHeaders headers = new HttpHeaders();
+						headers.setContentType(Utils.getMediaType(botWebserviceMessage.getContentType()));
+
+						if (Utils.isNotEmpty(botWebserviceMessage.getHeaderParams())) {
+							// split by comma separated to get all params then split by equal to get key and value for
+							// each param
+
+							// Map<String, String> headersMap = restRepoDTO.getRequestHeaders().stream()
+							// .collect(Collectors.toMap(RestRequestHeader::getRestHeaderName,
+							// RestRequestHeader::getRestHeaderValue));
+							//
+							// headers.setAll(headersMap);
+						}
+
+						/*
+						 * // Build request body HttpEntity<String> entity = new HttpEntity<String>("", headers); // Get
+						 * response ResponseEntity<String> response =
+						 * restTemplate.exchange(botWebserviceMessage.getWsUrl(),
+						 * Utils.getHttpMethod(botWebserviceMessage.getBotMethodType().getMethodTypeId()), entity,
+						 * String.class); System.out.println(response.getBody());
+						 */
+
+						HttpEntity<String> entity = new HttpEntity<String>("", headers);
+						// Get response
+						ResponseEntity<String> response = restTemplate.exchange(botWebserviceMessage.getWsUrl(),
+								Utils.getHttpMethod(botWebserviceMessage.getBotMethodType().getMethodTypeId()), entity, String.class);
+						System.out.println(response.getBody());
+						String jsonBodyString = response.getBody();
+						// jsonBodyString = "{ \"id\":1,\"values\":" + jsonBodyString + "}";
+						Object jsonBodyObject = new JSONTokener(jsonBodyString).nextValue();
+						JSONObject jsonObject = null;
+						JSONArray jsonArray = null;
+						if (jsonBodyObject instanceof JSONObject) {
+							jsonObject = (JSONObject) jsonBodyObject;
+							jsonArray = jsonObject.getJSONArray(botWebserviceMessage.getListParamName());
+						} else if (jsonBodyObject instanceof JSONArray) {
+							jsonArray = (JSONArray) jsonBodyObject;
+						}
+						List<Element> elements = new ArrayList<>();
+						List<Button> buttonsList = new ArrayList<>();
+						// string
+						if (botWebserviceMessage.getOutType().getInOutTypeId() == 1) {
+
+						}
+						// object
+						else if (botWebserviceMessage.getOutType().getInOutTypeId() == 2) {
+							String params[] = botWebserviceMessage.getOutputParams().split(",");
+
+							for (String string : params) {
+								System.out.println("Param is" + jsonObject.getString(string));
+							}
+
+						}
+						// list<object>
+						else if (botWebserviceMessage.getOutType().getInOutTypeId() == 3) {
+							// String params[] = botWebserviceMessage.getOutputParams().split(",");
+							List<BotWebserviceMapping> webServiceMappingList = chatBotService
+									.findWebserviceMappingByWsId(botWebserviceMessage.getWsMsgId());
+							if (messageTypeId == MessageTypeEnum.GENERICTEMPLATEMESSAGE.getValue()) {
+								for (int i = 0; i < jsonArray.length(); i++) {
+									buttonsList = new ArrayList<>();
+									JSONObject jsonObject2 = jsonArray.getJSONObject(i);
+									// for (String string : params) {
+									// Object value = jsonObject2.get(string);
+									// if (value instanceof String) {
+									// System.out.println("Param is" + jsonObject2.get(string).toString());
+									// } else if (value instanceof Integer) {
+									// System.out.println("Param is" + String.valueOf(jsonObject2.get(string)));
+									// }
+									// else if (value instanceof Double) {
+									// System.out.println("Param is" + String.valueOf(jsonObject2.get(string)));
+									// }
+
+									// System.out.println(string + " ----> " + String.valueOf(value));
+									// }
+									String title = null;
+									String subTitle = null;
+									String payload2 = null;
+									String buttonText = null;
+									for (BotWebserviceMapping botWebserviceMapping : webServiceMappingList) {
+										// output params
+										if (botWebserviceMapping.getFieldType() == 2) {
+											Object valueObject = jsonObject2.get(botWebserviceMapping.getFieldName());
+											String value = String.valueOf(valueObject);
+											// if (messageTypeId == MessageTypeEnum.GENERICTEMPLATEMESSAGE.getValue()) {
+
+											if (botWebserviceMapping.getFieldMapedTo().equals("title"))
+												title = value;
+											else if (botWebserviceMapping.getFieldMapedTo().equals("subTitle"))
+												subTitle = value;
+											else if (botWebserviceMapping.getFieldMapedTo().equals("payload"))
+												payload2 = value;
+											else if (botWebserviceMapping.getFieldMapedTo().equals("buttonText"))
+												buttonText = value;
+
+											// }
+										}
+									}
+
+									Button button = null;
+									if (botWebserviceMessage.isStatic())
+										buttonText = botWebserviceMessage.getButtonText().getEnglishText();
+									button = PostbackButton.create(buttonText, payload2);
+
+									buttonsList.add(button);
+
+									Element element = Element.create(title, Optional.of(subTitle), empty(), empty(), Optional.of(buttonsList));
+									if (elements.size() < 10)
+										elements.add(element);
+
+								}
+								Template template = GenericTemplate.create(elements);
+								messagePayload = MessagePayload.create(senderId, MessagingType.RESPONSE, TemplateMessage.create(template));
+								messagePayloadList.add(messagePayload);
+							}
+						}
 					}
 				}
 				sendMltipleMessages(messagePayloadList);
@@ -324,12 +467,114 @@ public class ChatBotController {
 
 	@RequestMapping(value = "/{param}", method = RequestMethod.GET)
 	public ResponseEntity<String> getMsg(@PathVariable("param") String msg) {
+		try {
+			String output = "Jersey say : " + msg;
 
-		String output = "Jersey say : " + msg;
-		List<BotInteractionMessage> interactionMessageList = chatBotService.findInteractionMessagesByInteractionId(0);
-		if (interactionMessageList != null && interactionMessageList.size() > 0)
-			System.out.println(interactionMessageList.get(0).getMessagePriority());
-		return ResponseEntity.status(200).body(output);
+			BotWebserviceMessage botWebserviceMessage = chatBotService.findWebserviceMessageByMessageId(6);
+			RestTemplate restTemplate = new RestTemplate();
+
+			// Build request headers if exists
+			HttpHeaders headers = new HttpHeaders();
+			headers.setContentType(Utils.getMediaType(botWebserviceMessage.getContentType()));
+
+			if (Utils.isNotEmpty(botWebserviceMessage.getHeaderParams())) {
+				// split by comma separated to get all params then split by equal to get key and value for
+				// each param
+
+				// Map<String, String> headersMap = restRepoDTO.getRequestHeaders().stream()
+				// .collect(Collectors.toMap(RestRequestHeader::getRestHeaderName,
+				// RestRequestHeader::getRestHeaderValue));
+				//
+				// headers.setAll(headersMap);
+			}
+
+			// Build request body
+			HttpEntity<String> entity = new HttpEntity<String>("", headers);
+
+			// Get response
+			ResponseEntity<String> response = restTemplate.exchange(botWebserviceMessage.getWsUrl(),
+					Utils.getHttpMethod(botWebserviceMessage.getBotMethodType().getMethodTypeId()), entity, String.class);
+			System.out.println(response.getBody());
+			String jsonBodyString = response.getBody();
+			// jsonBodyString = "{ \"id\":1,\"values\":" + jsonBodyString + "}";
+			Object jsonBodyObject = new JSONTokener(jsonBodyString).nextValue();
+			JSONObject jsonObject = null;
+			JSONArray jsonArray = null;
+			if (jsonBodyObject instanceof JSONObject) {
+				jsonObject = (JSONObject) jsonBodyObject;
+				jsonArray = jsonObject.getJSONArray(botWebserviceMessage.getListParamName());
+			} else if (jsonBodyObject instanceof JSONArray) {
+				jsonArray = (JSONArray) jsonBodyObject;
+			}
+			List<Element> elements = new ArrayList<>();
+			List<Button> buttonsList = new ArrayList<>();
+			if (botWebserviceMessage.getOutType().getInOutTypeId() == 2) {
+				String params[] = botWebserviceMessage.getOutputParams().split(",");
+
+				for (String string : params) {
+					System.out.println("Param is" + jsonObject.getString(string));
+				}
+
+			} else if (botWebserviceMessage.getOutType().getInOutTypeId() == 3) {
+				// String params[] = botWebserviceMessage.getOutputParams().split(",");
+				List<BotWebserviceMapping> webServiceMappingList = chatBotService.findWebserviceMappingByWsId(botWebserviceMessage.getWsMsgId());
+
+				for (int i = 0; i < jsonArray.length(); i++) {
+					buttonsList = new ArrayList<>();
+					JSONObject jsonObject2 = jsonArray.getJSONObject(i);
+					// for (String string : params) {
+					// Object value = jsonObject2.get(string);
+					// if (value instanceof String) {
+					// System.out.println("Param is" + jsonObject2.get(string).toString());
+					// } else if (value instanceof Integer) {
+					// System.out.println("Param is" + String.valueOf(jsonObject2.get(string)));
+					// }
+					// else if (value instanceof Double) {
+					// System.out.println("Param is" + String.valueOf(jsonObject2.get(string)));
+					// }
+
+					// System.out.println(string + " ----> " + String.valueOf(value));
+					// }
+					String title = null;
+					String subTitle = null;
+					String payload = null;
+					for (BotWebserviceMapping botWebserviceMapping : webServiceMappingList) {
+						Object valueObject = jsonObject2.get(botWebserviceMapping.getFieldName());
+						String value = String.valueOf(valueObject);
+						if (3 == MessageTypeEnum.GENERICTEMPLATEMESSAGE.getValue()) {
+
+							if (botWebserviceMapping.getFieldMapedTo().equals("title"))
+								title = value;
+							else if (botWebserviceMapping.getFieldMapedTo().equals("subTitle"))
+								subTitle = value;
+							else if (botWebserviceMapping.getFieldMapedTo().equals("payload"))
+								payload = value;
+
+						}
+					}
+					Button button = PostbackButton.create("Subscribe", payload);
+					buttonsList.add(button);
+
+					Element element = Element.create(title, Optional.of(subTitle), empty(), empty(), Optional.of(buttonsList));
+
+					elements.add(element);
+
+				}
+				Template template = GenericTemplate.create(elements);
+				// messagePayload = MessagePayload.create(senderId, MessagingType.RESPONSE,
+				// TemplateMessage.create(template));
+				// messagePayloadList.add(messagePayload);
+			}
+
+		} catch (JSONException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		// List<BotInteractionMessage> interactionMessageList =
+		// chatBotService.findInteractionMessagesByInteractionId(0);
+		// if (interactionMessageList != null && interactionMessageList.size() > 0)
+		// System.out.println(interactionMessageList.get(0).getMessagePriority());
+		return ResponseEntity.status(200).body("Hello");
 
 	}
 
@@ -358,5 +603,18 @@ public class ChatBotController {
 			return messageTypeId;
 		}
 	}
+
+	/*
+	 * public enum ContentTypeEnum { APPLICATION_JSON(1), APPLICATION_XML(2); private final int contentTypeId; private
+	 * ContentTypeEnum(int contentTypeId) { this.contentTypeId = contentTypeId; } public int getValue() { return
+	 * contentTypeId; } }
+	 */
+
+	/*
+	 * public enum MethodTypeEnum { GET(1), POST(2); private final int methodtTypeId; private MethodTypeEnum(int
+	 * methodtTypeId) { this.methodtTypeId = methodtTypeId; } public int getValue() { return methodtTypeId; } }
+	 */
+
+	// to be added in util CLass
 
 }
